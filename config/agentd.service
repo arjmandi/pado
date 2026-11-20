@@ -1,0 +1,44 @@
+# ~/.config/systemd/user/agentd.service
+#
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now agentd
+#   systemctl --user status agentd
+#   journalctl --user -u agentd -f
+#   systemctl --user disable --now agentd
+#
+# IMPORTANT: do NOT run `loginctl enable-linger $USER`.
+# Lingering keeps user services alive after logout, which defeats the whole
+# point of this design — agents must not run when you are not at the machine.
+# WantedBy=default.target ties the daemon to your login session.
+
+[Unit]
+Description=agentd - local Claude Code agents driven by a GitHub Projects board
+Documentation=file:%h/pado/docs/DESIGN.md
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/bin/agentd.py --config %h/.agentd/config.toml
+WorkingDirectory=%h
+
+# claude, gh and git are commonly outside a minimal PATH.
+Environment=PATH=%h/.local/bin:%h/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HOME=%h
+
+# SIGTERM lets the supervisor drain in-flight agents rather than orphaning them.
+KillSignal=SIGTERM
+TimeoutStopSec=300
+
+Restart=on-failure
+RestartSec=30
+
+# Modest hardening. Not a sandbox: the daemon must write to your repos,
+# ~/.claude, and ~/agents, so the useful knobs are limited.
+NoNewPrivileges=true
+PrivateTmp=true
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

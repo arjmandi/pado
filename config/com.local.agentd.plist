@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~/Library/LaunchAgents/com.local.agentd.plist
+
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.agentd.plist
+    launchctl kickstart -k gui/$(id -u)/com.local.agentd     # restart after edits
+    launchctl bootout gui/$(id -u)/com.local.agentd          # stop for good
+
+  A LaunchAgent (not a LaunchDaemon) is the right choice here: it runs as you,
+  in your login session, with your keychain and gh credentials available, and it
+  is gone the moment you log out or shut down. That is exactly the requirement.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.local.agentd</string>
+
+  <!-- NOT /usr/bin/python3: Apple ships 3.9, and agentd needs 3.11+ for
+       tomllib. Point at Homebrew's (verify with: python3 --version). -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/python3</string>
+    <string>/Users/CHANGEME/bin/agentd.py</string>
+    <string>--config</string>
+    <string>/Users/CHANGEME/.agentd/config.toml</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- Restart if it crashes, but back off so a config error doesn't spin. -->
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+
+  <!-- launchd hands processes a minimal PATH; claude, gh and git need finding. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>/Users/CHANGEME</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/Users/CHANGEME/agents/logs/agentd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/CHANGEME/agents/logs/agentd.err.log</string>
+
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <!-- Optional: keep the machine awake while an agent is mid-run.
+       Prefer wrapping runs in `caffeinate -i` over disabling sleep globally. -->
+</dict>
+</plist>

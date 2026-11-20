@@ -1,0 +1,119 @@
+# ~/.agentd/config.toml
+#
+# The board's columns are the routing table: each [[route]] block binds a set
+# of Status options to one agent identity — a working directory, a mode, and
+# its own session namespace. Columns not claimed by any route (archive,
+# personal, Blocked, No priority yet, Next 3 months) are ignored.
+
+repo           = "you/board"       # the repo the board's issues live in
+project_owner  = "you"             # login that owns the Project
+project_number = 1                  # from the Project URL
+owner_type     = "user"             # "user" or "organization"
+
+workspace_root = "~/agents"         # per-issue worktrees + logs land here
+
+# Archived items don't count toward pagination; 60s keeps the polling polite.
+poll_interval_seconds = 60
+max_concurrent_agents = 2           # your laptop's fans have opinions
+
+status_field   = "Status"
+
+# Optional: park a card in this column when its agent reports BLOCKED or
+# crashes. Leave empty to keep the card in place — note that a parked card is
+# outside every route, so comments stop reaching the agent until you drag it
+# back. (The daemon's Agent status field already shows blocked without
+# moving anything.)
+blocked_status = ""
+
+# Desktop notifications for run lifecycle: picked up / done / blocked /
+# failed / crashed / interrupted. "macos" = Notification Center banners.
+# GitHub itself can never notify you here: the daemon comments as YOU, and
+# GitHub is silent about your own activity. "" turns banners off.
+notify = "macos"
+
+# Columns model OWNERSHIP; run-state and completion live elsewhere:
+#   - completion = closing the issue. Closed issues vanish from the daemon's
+#     world; archive the card (week NN) whenever you like.
+#   - run-state = this optional single-select field, written by the daemon and
+#     never by you: working / done / blocked (options spelled exactly).
+#     "done" means the agent finished and it awaits YOUR review — the card
+#     stays in its column so follow-up comments still reach the agent.
+# Create the field on the board (e.g. "Agent status"), name it here, and show
+# it on the card front in the board view. Empty = feature off, no board writes.
+agent_status_field = "Agent status"
+
+# Work-stream separation: the daemon stamps scope_default on any card whose
+# Scope is unset, within one poll. A hand-set value (e.g. personal) is never
+# overwritten. The weekly report splits Done by this field.
+scope_field   = "Scope"
+scope_default = "contract"
+
+# Optional: author the daemon's comments and reactions as a separate machine
+# account (e.g. "your-bot"; token in the AGENTD_BOT_TOKEN env var or
+# ~/.agentd/bot_token, chmod 600). Because the bot is a different author,
+# GitHub then notifies you about agent activity. Comments FROM this login
+# never act as instructions. "" = everything runs as your own account.
+bot_login = ""
+
+claude_max_turns      = 120
+claude_max_budget_usd = 10.0
+claude_model          = "sonnet"
+
+state_db = "~/.agentd/state.db"
+
+# Runs interrupted mid-flight (sleep, shutdown) are detected on boot.
+#   "note"   = post a comment; you re-trigger by replying (safe, cannot loop)
+#   "resume" = re-enqueue automatically, bounded by max_runs_per_issue
+reconcile_on_start = "note"
+max_runs_per_issue = 20
+
+# --- routes ------------------------------------------------------------- #
+
+# The central planning agent. Runs *in the planning checkout itself*
+# (mode = "in_place"): no worktree, no branch, no PR — it triages, drafts
+# replies (e.g. into a handoffs/MESSAGE-DRAFTS.md file), and moves cards on
+# the board. trigger_on_move = false because these columns are reshuffled
+# constantly during planning; only a comment on a card summons the agent.
+[[route]]
+name            = "central"
+columns         = ["In plan"]
+workdir         = "~/workspace/planning"
+mode            = "in_place"
+trigger_on_move = false
+browser         = true
+
+# Project agents. Each works in its own repo; a card dragged into the column
+# is the handover (trigger_on_move defaults to true), and comments continue
+# the same session. mode = "worktree": branch agent/issue-N, draft PR.
+
+# A web app that deploys on every push to main — merging is the human's call.
+# browser = true: headless runs get the Chrome bridge (read/verify only).
+# One browser run at a time — the daemon serializes browser-flagged jobs.
+[[route]]
+name    = "web"
+columns = ["agent: web"]
+workdir = "~/workspace/web-app"
+repo    = "you/web-app"
+browser = true
+
+[[route]]
+name    = "docs"
+columns = ["agent: docs"]
+workdir = "~/workspace/docs"
+repo    = "you/docs"
+
+[[route]]
+name    = "infra"
+columns = ["agent: infra"]
+workdir = "~/workspace/infra"
+repo    = "you/infra"
+# base_branch = "main"   # only if the default branch differs
+
+# A personal side project: scope overrides scope_default for its cards.
+[[route]]
+name    = "blog"
+columns = ["agent: blog"]
+workdir = "~/workspace/blog"
+repo    = "you/blog"
+scope   = "personal"
+browser = true
